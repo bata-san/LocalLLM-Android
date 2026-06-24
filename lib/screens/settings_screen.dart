@@ -11,34 +11,28 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late TextEditingController _apiKeyCtrl;
   late TextEditingController _systemPromptCtrl;
   late TextEditingController _nCtxCtrl;
-  bool _showKey = false;
 
   @override
   void initState() {
     super.initState();
-    final s = widget.settings;
-    _apiKeyCtrl = TextEditingController(text: s.firecrawlKey);
-    _systemPromptCtrl = TextEditingController(text: s.systemPrompt);
-    _nCtxCtrl = TextEditingController(text: s.nCtx.toString());
+    _systemPromptCtrl = TextEditingController(text: widget.settings.systemPrompt);
+    _nCtxCtrl = TextEditingController(text: widget.settings.nCtx.toString());
   }
 
   @override
   void dispose() {
-    _apiKeyCtrl.dispose();
     _systemPromptCtrl.dispose();
     _nCtxCtrl.dispose();
     super.dispose();
   }
 
   void _save() {
-    widget.settings.firecrawlKey = _apiKeyCtrl.text.trim();
     widget.settings.systemPrompt = _systemPromptCtrl.text.trim();
     widget.settings.nCtx = int.tryParse(_nCtxCtrl.text) ?? 4096;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Saved', style: V.sans(size: 12)),
+      content: Text('Saved', style: V.sans(size: 13)),
       backgroundColor: V.card2,
       duration: const Duration(seconds: 1),
       behavior: SnackBarBehavior.floating,
@@ -61,41 +55,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: _save,
-            child: Text('Save', style: V.sans(size: 13, color: V.amber, weight: FontWeight.w600)),
+            child: Text('Save', style: V.sans(size: 14, color: V.amber, weight: FontWeight.w600)),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Section(
-            title: 'Web Search',
-            children: [
-              _FieldLabel('Firecrawl API key'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _apiKeyCtrl,
-                obscureText: !_showKey,
-                style: V.mono(size: 13),
-                decoration: InputDecoration(
-                  hintText: 'fc-...',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _showKey ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      size: 16, color: V.textSub,
-                    ),
-                    onPressed: () => setState(() => _showKey = !_showKey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Stored on device only — never synced or committed to source control.',
-                style: V.sans(size: 11, color: V.textMute),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           _Section(
             title: 'Model',
             children: [
@@ -104,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               TextField(
                 controller: _nCtxCtrl,
                 keyboardType: TextInputType.number,
-                style: V.sans(size: 14),
+                style: V.sans(size: 15),
                 decoration: const InputDecoration(hintText: '4096'),
               ),
               const SizedBox(height: 14),
@@ -112,8 +78,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 6),
               TextField(
                 controller: _systemPromptCtrl,
-                maxLines: 5,
-                style: V.sans(size: 13),
+                maxLines: 6,
+                style: V.sans(size: 14),
               ),
             ],
           ),
@@ -134,7 +100,7 @@ class _Section extends StatelessWidget {
     children: [
       Padding(
         padding: const EdgeInsets.only(left: 2, bottom: 8),
-        child: Text(title.toUpperCase(), style: V.sans(size: 10, color: V.textMute, weight: FontWeight.w600)),
+        child: Text(title.toUpperCase(), style: V.sans(size: 11, color: V.textMute, weight: FontWeight.w600)),
       ),
       Container(
         padding: const EdgeInsets.all(16),
@@ -154,5 +120,5 @@ class _FieldLabel extends StatelessWidget {
   const _FieldLabel(this.text);
   @override
   Widget build(BuildContext context) =>
-    Text(text, style: V.sans(size: 12, color: V.textSub, weight: FontWeight.w500));
+    Text(text, style: V.sans(size: 13, color: V.textSub, weight: FontWeight.w500));
 }

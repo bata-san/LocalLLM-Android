@@ -21,12 +21,21 @@ class HfFile {
 class DownloadProgress {
   final int received;
   final int total;
-  const DownloadProgress(this.received, this.total);
+  final double? speedBps;
+
+  const DownloadProgress(this.received, this.total, {this.speedBps});
+
   double get fraction => total > 0 ? received / total : 0;
+
   String get label {
     final mb = received / 1e6;
     final tot = total / 1e6;
-    return '${mb.toStringAsFixed(0)} / ${tot.toStringAsFixed(0)} MB';
+    final base = '${mb.toStringAsFixed(0)} / ${tot.toStringAsFixed(0)} MB';
+    if (speedBps != null && speedBps! > 100000) {
+      final mbps = speedBps! / 1e6;
+      return '$base  •  ${mbps.toStringAsFixed(1)} MB/s';
+    }
+    return base;
   }
 }
 

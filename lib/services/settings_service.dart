@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService {
-  static const _keyFirecrawlKey = 'firecrawl_api_key';
   static const _keySystemPrompt = 'system_prompt';
   static const _keyNCtx = 'n_ctx';
   static const _keySearchEnabled = 'search_enabled';
@@ -12,9 +11,6 @@ class SettingsService {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
   }
-
-  String get firecrawlKey => _prefs.getString(_keyFirecrawlKey) ?? '';
-  set firecrawlKey(String v) => _prefs.setString(_keyFirecrawlKey, v);
 
   String get systemPrompt => _prefs.getString(_keySystemPrompt) ??
     'You are a helpful, knowledgeable assistant. Be concise and accurate.';

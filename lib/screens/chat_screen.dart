@@ -110,9 +110,9 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _messages.add(userMsg));
 
     String finalPrompt = text;
-    if (widget.settings.searchEnabled && widget.settings.firecrawlKey.isNotEmpty) {
+    if (widget.settings.searchEnabled) {
       try {
-        final fc = FirecrawlService(widget.settings.firecrawlKey);
+        final fc = FirecrawlService();
         final results = await fc.search(text, limit: 3);
         final ctx = fc.buildContext(results);
         if (ctx.isNotEmpty) {

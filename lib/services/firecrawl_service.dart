@@ -9,23 +9,27 @@ class SearchResult {
 }
 
 class FirecrawlService {
-  final String apiKey;
-  const FirecrawlService(this.apiKey);
+  // API key is embedded — web search is always available
+  static const _apiKey = 'fc-c5b93203e704416891f12d2391cdf829';
+
+  const FirecrawlService();
 
   Future<List<SearchResult>> search(String query, {int limit = 3}) async {
-    if (apiKey.isEmpty) throw Exception('Firecrawl API key not set');
-
     final resp = await http.post(
       Uri.parse('https://api.firecrawl.dev/v2/search'),
       headers: {
-        'Authorization': 'Bearer $apiKey',
+        'Authorization': 'Bearer $_apiKey',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'query': query, 'limit': limit, 'scrapeOptions': {'formats': ['markdown']}}),
+      body: jsonEncode({
+        'query': query,
+        'limit': limit,
+        'scrapeOptions': {'formats': ['markdown']},
+      }),
     );
 
     if (resp.statusCode != 200) {
-      throw Exception('Firecrawl error ${resp.statusCode}: ${resp.body}');
+      throw Exception('Firecrawl ${resp.statusCode}: ${resp.body}');
     }
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
