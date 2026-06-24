@@ -23,9 +23,10 @@ class ModelsScreen extends StatefulWidget {
 
 class _ModelsScreenState extends State<ModelsScreen> {
   final _repoCtrl = TextEditingController();
+  String? _browsedRepo;
   List<HfFile>? _files;
   List<FileSystemEntity> _localModels = [];
-  String? _loadingRepo;
+  bool _loadingRepo = false;
   String? _downloadingFile;
   double _downloadProgress = 0;
   String _downloadLabel = '';
@@ -46,21 +47,20 @@ class _ModelsScreenState extends State<ModelsScreen> {
   }
 
   Future<void> _browseRepo(String repoId) async {
-    setState(() { _loadingRepo = repoId; _files = null; _error = null; });
+    setState(() { _loadingRepo = true; _files = null; _error = null; _browsedRepo = repoId; });
     try {
       final files = await widget.hf.listGgufFiles(repoId);
-      if (mounted) setState(() { _files = files; _loadingRepo = null; });
+      if (mounted) setState(() { _files = files; _loadingRepo = false; });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loadingRepo = null; });
+      if (mounted) setState(() { _error = e.toString(); _loadingRepo = false; });
     }
   }
 
   Future<void> _download(String repoId, HfFile file) async {
-    // check if exists
     final existing = await widget.hf.findLocalFile(file.name);
     if (existing != null) {
       widget.onModelSelected(existing);
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
       return;
     }
 
@@ -69,10 +69,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
     try {
       await for (final prog in widget.hf.download(repoId, file.name)) {
         if (!mounted) return;
-        setState(() {
-          _downloadProgress = prog.fraction;
-          _downloadLabel = prog.label;
-        });
+        setState(() { _downloadProgress = prog.fraction; _downloadLabel = prog.label; });
       }
       final path = await widget.hf.findLocalFile(file.name);
       if (path != null) {
@@ -88,20 +85,29 @@ class _ModelsScreenState extends State<ModelsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Models')),
+      backgroundColor: V.bg,
+      appBar: AppBar(
+        title: const Text('Models'),
+        backgroundColor: V.bg,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(color: V.border, height: 1),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Local models
           if (_localModels.isNotEmpty) ...[
-            _SectionLabel('Local models'),
+            _Label('On device'),
             const SizedBox(height: 8),
             ..._localModels.map((f) {
               final name = f.path.split('/').last.split('\\').last;
               final size = f.statSync().size;
               final gb = (size / 1e9).toStringAsFixed(2);
               final isCurrent = widget.settings.lastModelPath == f.path;
-              return _ModelTile(
+              return _LocalModelTile(
                 name: name,
                 sub: '$gb GB',
                 isActive: isCurrent,
@@ -119,8 +125,8 @@ class _ModelsScreenState extends State<ModelsScreen> {
             const SizedBox(height: 20),
           ],
 
-          // Preset repos
-          _SectionLabel('Download from HuggingFace'),
+          // Presets
+          _Label('Download'),
           const SizedBox(height: 8),
           ...kPresetRepos.map((p) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -131,9 +137,10 @@ class _ModelsScreenState extends State<ModelsScreen> {
               onTap: () => _browseRepo(p.repo),
             ),
           )),
-          const SizedBox(height: 8),
 
-          // Custom repo input
+          const SizedBox(height: 12),
+          _Label('Custom repo'),
+          const SizedBox(height: 6),
           Row(children: [
             Expanded(
               child: TextField(
@@ -143,79 +150,41 @@ class _ModelsScreenState extends State<ModelsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            _SmallBtn(
-              label: 'Browse',
-              onTap: () {
-                final r = _repoCtrl.text.trim();
-                if (r.isNotEmpty) _browseRepo(r);
-              },
-            ),
+            _SmallBtn(label: 'Browse', onTap: () {
+              final r = _repoCtrl.text.trim();
+              if (r.isNotEmpty) _browseRepo(r);
+            }),
           ]),
 
-          // Loading
-          if (_loadingRepo != null) ...[
-            const SizedBox(height: 16),
+          if (_loadingRepo) ...[
+            const SizedBox(height: 24),
             Center(child: Column(children: [
-              const CircularProgressIndicator(color: V.blue, strokeWidth: 1.5),
-              const SizedBox(height: 8),
-              Text('Fetching $_loadingRepo...', style: V.sans(size: 12, color: V.textSub)),
+              SizedBox(width: 22, height: 22,
+                child: CircularProgressIndicator(color: V.amber, strokeWidth: 1.5)),
+              const SizedBox(height: 10),
+              Text('Fetching file list...', style: V.sans(size: 12, color: V.textSub)),
             ])),
           ],
 
-          // Error
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: V.red.withAlpha(20),
-                borderRadius: BorderRadius.all(V.rSm),
-                border: Border.all(color: V.red.withAlpha(60)),
-              ),
-              child: Text(_error!, style: V.sans(size: 12, color: V.red)),
-            ),
+            _ErrorBox(_error!),
           ],
 
-          // File list
           if (_files != null) ...[
             const SizedBox(height: 16),
-            _SectionLabel('Select a file'),
+            _Label('Select file'),
             const SizedBox(height: 8),
             ..._files!.map((f) {
-              final isDownloading = _downloadingFile == f.name;
+              final isDown = _downloadingFile == f.name;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: InkWell(
-                  onTap: isDownloading ? null : () => _download(_loadingRepo ?? _repoCtrl.text.trim(), f),
-                  borderRadius: BorderRadius.all(V.rSm),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: V.card,
-                      borderRadius: BorderRadius.all(V.rSm),
-                      border: Border.all(color: V.border2),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Expanded(child: Text(f.name, style: V.mono(size: 12))),
-                          Text(f.displaySize, style: V.sans(size: 11, color: V.textSub)),
-                        ]),
-                        if (isDownloading) ...[
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: _downloadProgress,
-                            backgroundColor: V.border2,
-                            valueColor: const AlwaysStoppedAnimation(V.blue),
-                            minHeight: 2,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(_downloadLabel, style: V.sans(size: 11, color: V.textSub)),
-                        ],
-                      ],
-                    ),
-                  ),
+                child: _FileTile(
+                  file: f,
+                  isDownloading: isDown,
+                  progress: isDown ? _downloadProgress : 0,
+                  progressLabel: isDown ? _downloadLabel : '',
+                  onTap: isDown ? null : () => _download(_browsedRepo!, f),
                 ),
               );
             }),
@@ -226,9 +195,9 @@ class _ModelsScreenState extends State<ModelsScreen> {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
+class _Label extends StatelessWidget {
   final String text;
-  const _SectionLabel(this.text);
+  const _Label(this.text);
   @override
   Widget build(BuildContext context) =>
     Text(text.toUpperCase(), style: V.sans(size: 10, color: V.textMute, weight: FontWeight.w600));
@@ -242,60 +211,110 @@ class _PresetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
-    borderRadius: BorderRadius.all(V.rSm),
+    borderRadius: BorderRadius.all(V.rMd),
     child: Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: V.card,
-        borderRadius: BorderRadius.all(V.rSm),
-        border: Border.all(color: V.border2),
+        color: V.surface,
+        borderRadius: BorderRadius.all(V.rMd),
+        border: Border.all(color: V.border),
       ),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: V.sans(size: 13, weight: FontWeight.w500)),
-          const SizedBox(height: 2),
+          Text(label, style: V.sans(size: 14, weight: FontWeight.w500)),
+          const SizedBox(height: 3),
           Text(repo, style: V.mono(size: 11, color: V.textSub)),
+          const SizedBox(height: 1),
           Text(note, style: V.sans(size: 11, color: V.textMute)),
         ])),
-        const Icon(Icons.chevron_right, color: V.textMute, size: 16),
+        const SizedBox(width: 8),
+        const Icon(Icons.chevron_right, color: V.textMute, size: 18),
       ]),
     ),
   );
 }
 
-class _ModelTile extends StatelessWidget {
+class _LocalModelTile extends StatelessWidget {
   final String name, sub;
   final bool isActive;
   final VoidCallback onTap, onDelete;
-  const _ModelTile({required this.name, required this.sub, required this.isActive, required this.onTap, required this.onDelete});
+  const _LocalModelTile({required this.name, required this.sub, required this.isActive, required this.onTap, required this.onDelete});
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.all(V.rSm),
+      borderRadius: BorderRadius.all(V.rMd),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? V.blueBg : V.card,
-          borderRadius: BorderRadius.all(V.rSm),
-          border: Border.all(color: isActive ? V.blue.withAlpha(80) : V.border2),
+          color: isActive ? V.amberBg : V.surface,
+          borderRadius: BorderRadius.all(V.rMd),
+          border: Border.all(color: isActive ? V.amberDim.withAlpha(120) : V.border),
         ),
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: V.mono(size: 12)),
+            Text(name, style: V.mono(size: 12, color: isActive ? V.amber : V.text)),
             Text(sub, style: V.sans(size: 11, color: V.textSub)),
           ])),
-          if (isActive)
-            const Icon(Icons.check_circle, color: V.blue, size: 16),
-          const SizedBox(width: 8),
+          if (isActive) const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Icon(Icons.check_circle, color: V.amber, size: 16),
+          ),
           GestureDetector(
             onTap: onDelete,
-            child: const Icon(Icons.delete_outline, color: V.textMute, size: 16),
+            child: const Icon(Icons.delete_outline, color: V.textMute, size: 18),
           ),
         ]),
       ),
+    ),
+  );
+}
+
+class _FileTile extends StatelessWidget {
+  final HfFile file;
+  final bool isDownloading;
+  final double progress;
+  final String progressLabel;
+  final VoidCallback? onTap;
+  const _FileTile({required this.file, required this.isDownloading, required this.progress, required this.progressLabel, this.onTap});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.all(V.rMd),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: V.surface,
+        borderRadius: BorderRadius.all(V.rMd),
+        border: Border.all(color: V.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(file.name, style: V.mono(size: 12))),
+          Text(file.displaySize, style: V.sans(size: 11, color: V.textSub)),
+          if (!isDownloading) const Padding(
+            padding: EdgeInsets.only(left: 8),
+            child: Icon(Icons.download_outlined, color: V.textMute, size: 16),
+          ),
+        ]),
+        if (isDownloading) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: V.border2,
+              valueColor: const AlwaysStoppedAnimation(V.amber),
+              minHeight: 3,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(progressLabel, style: V.sans(size: 11, color: V.textSub)),
+        ],
+      ]),
     ),
   );
 }
@@ -309,12 +328,25 @@ class _SmallBtn extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: V.blue,
-        borderRadius: BorderRadius.all(V.rSm),
-      ),
-      child: Text(label, style: V.sans(size: 13, weight: FontWeight.w500)),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(color: V.amber, borderRadius: BorderRadius.all(V.rSm)),
+      child: Text(label, style: V.sans(size: 13, weight: FontWeight.w600, color: Colors.white)),
     ),
+  );
+}
+
+class _ErrorBox extends StatelessWidget {
+  final String message;
+  const _ErrorBox(this.message);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: V.red.withAlpha(20),
+      borderRadius: BorderRadius.all(V.rSm),
+      border: Border.all(color: V.red.withAlpha(60)),
+    ),
+    child: Text(message, style: V.sans(size: 12, color: V.red)),
   );
 }

@@ -34,71 +34,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _save() {
-    final s = widget.settings;
-    s.firecrawlKey = _apiKeyCtrl.text.trim();
-    s.systemPrompt = _systemPromptCtrl.text.trim();
-    s.nCtx = int.tryParse(_nCtxCtrl.text) ?? 4096;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved', style: V.sans(size: 12)),
-        backgroundColor: V.card2,
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    widget.settings.firecrawlKey = _apiKeyCtrl.text.trim();
+    widget.settings.systemPrompt = _systemPromptCtrl.text.trim();
+    widget.settings.nCtx = int.tryParse(_nCtxCtrl.text) ?? 4096;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Saved', style: V.sans(size: 12)),
+      backgroundColor: V.card2,
+      duration: const Duration(seconds: 1),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(V.rSm)),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: V.bg,
       appBar: AppBar(
         title: const Text('Settings'),
+        backgroundColor: V.bg,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(color: V.border, height: 1),
+        ),
         actions: [
           TextButton(
             onPressed: _save,
-            child: Text('Save', style: V.sans(size: 13, color: V.blue, weight: FontWeight.w500)),
+            child: Text('Save', style: V.sans(size: 13, color: V.amber, weight: FontWeight.w600)),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Section(title: 'Firecrawl', children: [
-            _Label('API Key'),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _apiKeyCtrl,
-              obscureText: !_showKey,
-              style: V.mono(size: 13),
-              decoration: InputDecoration(
-                hintText: 'fc-...',
-                suffixIcon: IconButton(
-                  icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility, size: 16, color: V.textSub),
-                  onPressed: () => setState(() => _showKey = !_showKey),
+          _Section(
+            title: 'Web Search',
+            children: [
+              _FieldLabel('Firecrawl API key'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _apiKeyCtrl,
+                obscureText: !_showKey,
+                style: V.mono(size: 13),
+                decoration: InputDecoration(
+                  hintText: 'fc-...',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showKey ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      size: 16, color: V.textSub,
+                    ),
+                    onPressed: () => setState(() => _showKey = !_showKey),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text('Stored locally, never synced or committed', style: V.sans(size: 11, color: V.textMute)),
-          ]),
-          const SizedBox(height: 20),
-          _Section(title: 'Model', children: [
-            _Label('Context length (tokens)'),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _nCtxCtrl,
-              keyboardType: TextInputType.number,
-              style: V.sans(size: 14),
-            ),
-            const SizedBox(height: 12),
-            _Label('System prompt'),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _systemPromptCtrl,
-              maxLines: 4,
-              style: V.sans(size: 13),
-            ),
-          ]),
+              const SizedBox(height: 6),
+              Text(
+                'Stored on device only — never synced or committed to source control.',
+                style: V.sans(size: 11, color: V.textMute),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _Section(
+            title: 'Model',
+            children: [
+              _FieldLabel('Context length (tokens)'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _nCtxCtrl,
+                keyboardType: TextInputType.number,
+                style: V.sans(size: 14),
+                decoration: const InputDecoration(hintText: '4096'),
+              ),
+              const SizedBox(height: 14),
+              _FieldLabel('System prompt'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _systemPromptCtrl,
+                maxLines: 5,
+                style: V.sans(size: 13),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -114,12 +132,14 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(title.toUpperCase(), style: V.sans(size: 10, color: V.textMute, weight: FontWeight.w600)),
-      const SizedBox(height: 10),
+      Padding(
+        padding: const EdgeInsets.only(left: 2, bottom: 8),
+        child: Text(title.toUpperCase(), style: V.sans(size: 10, color: V.textMute, weight: FontWeight.w600)),
+      ),
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: V.card,
+          color: V.surface,
           borderRadius: BorderRadius.all(V.rMd),
           border: Border.all(color: V.border),
         ),
@@ -129,9 +149,9 @@ class _Section extends StatelessWidget {
   );
 }
 
-class _Label extends StatelessWidget {
+class _FieldLabel extends StatelessWidget {
   final String text;
-  const _Label(this.text);
+  const _FieldLabel(this.text);
   @override
   Widget build(BuildContext context) =>
     Text(text, style: V.sans(size: 12, color: V.textSub, weight: FontWeight.w500));
