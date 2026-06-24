@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.jks
+*.keystore
+
+# Model files
+*.gguf
+*.bin
+*.safetensors
+
+# API keys - never commit
+secrets.properties
