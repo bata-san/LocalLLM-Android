@@ -13,8 +13,9 @@
 static std::atomic<bool> g_stop{false};
 
 struct ModelState {
-    llama_model*   model = nullptr;
-    llama_context* ctx   = nullptr;
+    llama_model*        model = nullptr;
+    llama_context*      ctx   = nullptr;
+    const llama_vocab*  vocab = nullptr;
 };
 
 static void batch_add(llama_batch& batch, llama_token id, llama_pos pos, bool logits) {
@@ -35,7 +36,7 @@ Java_com_bata_localllm_llm_LlmBridge_loadModel(
 
     llama_backend_init();
 
-    auto mparams  = llama_model_default_params();
+    auto mparams     = llama_model_default_params();
     mparams.n_gpu_layers = 0;
 
     const char* path = env->GetStringUTFChars(jpath, nullptr);
@@ -43,15 +44,12 @@ Java_com_bata_localllm_llm_LlmBridge_loadModel(
     llama_model* model = llama_load_model_from_file(path, mparams);
     env->ReleaseStringUTFChars(jpath, path);
 
-    if (!model) {
-        LOGE("Failed to load model");
-        return 0L;
-    }
+    if (!model) { LOGE("Failed to load model"); return 0L; }
 
-    auto cparams  = llama_context_default_params();
-    cparams.n_ctx     = (uint32_t)n_ctx;
-    cparams.n_batch   = 512;
-    cparams.n_threads = 4;
+    auto cparams       = llama_context_default_params();
+    cparams.n_ctx      = (uint32_t)n_ctx;
+    cparams.n_batch    = 512;
+    cparams.n_threads  = 4;
     cparams.n_threads_batch = 4;
 
     llama_context* ctx = llama_new_context_with_model(model, cparams);
@@ -61,7 +59,10 @@ Java_com_bata_localllm_llm_LlmBridge_loadModel(
         return 0L;
     }
 
-    auto* state = new ModelState{model, ctx};
+    // New API: vocab is separate from model
+    const llama_vocab* vocab = llama_model_get_vocab(model);
+
+    auto* state = new ModelState{model, ctx, vocab};
     LOGI("Model loaded OK");
     return reinterpret_cast<jlong>(state);
 }
@@ -80,23 +81,20 @@ Java_com_bata_localllm_llm_LlmBridge_generate(
     std::string prompt(p);
     env->ReleaseStringUTFChars(jprompt, p);
 
-    jclass   cbCls = env->GetObjectClass(callback);
-    jmethodID cbFn = env->GetMethodID(cbCls, "onToken", "(Ljava/lang/String;Z)V");
+    jclass    cbCls = env->GetObjectClass(callback);
+    jmethodID cbFn  = env->GetMethodID(cbCls, "onToken", "(Ljava/lang/String;Z)V");
 
-    // Tokenize prompt
+    // Tokenize — new API takes vocab, not model
     const int max_tok = llama_n_ctx(state->ctx);
     std::vector<llama_token> tokens(max_tok);
-    int n = llama_tokenize(state->model,
+    int n = llama_tokenize(state->vocab,
                            prompt.c_str(), (int32_t)prompt.size(),
                            tokens.data(), max_tok,
                            true, false);
-    if (n < 0) {
-        LOGE("Tokenize error");
-        return;
-    }
+    if (n < 0) { LOGE("Tokenize error"); return; }
     tokens.resize(n);
 
-    // Process prompt
+    // Decode prompt
     llama_batch batch = llama_batch_init(512, 0, 1);
     for (int i = 0; i < n; i++) {
         batch_add(batch, tokens[i], i, i == n - 1);
@@ -120,20 +118,22 @@ Java_com_bata_localllm_llm_LlmBridge_generate(
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.7f));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(42));
 
-    // Generate
+    // Generate tokens
     llama_batch gen_batch = llama_batch_init(1, 0, 1);
     for (int i = 0; i < 2048 && !g_stop.load(); i++) {
         llama_token tok = llama_sampler_sample(smpl, state->ctx, -1);
 
-        if (llama_token_is_eog(state->model, tok)) {
+        // EOG check — new API uses vocab
+        if (llama_vocab_is_eog(state->vocab, tok)) {
             jstring empty = env->NewStringUTF("");
             env->CallVoidMethod(callback, cbFn, empty, (jboolean)true);
             env->DeleteLocalRef(empty);
             break;
         }
 
+        // Token → string — new API uses vocab
         char piece[256];
-        int plen = llama_token_to_piece(state->model, tok, piece, sizeof(piece)-1, 0, true);
+        int plen = llama_token_to_piece(state->vocab, tok, piece, sizeof(piece)-1, 0, true);
         if (plen > 0) {
             piece[plen] = '\0';
             jstring js = env->NewStringUTF(piece);
