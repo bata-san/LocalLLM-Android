@@ -1,20 +1,34 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+pubspec.lock
+
+# Android
+.gradle/
+android/.gradle/
+android/app/.cxx/
+android/app/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
 *.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
 *.jks
 *.keystore
 
-# Model files
+# Model files - never commit
 *.gguf
 *.bin
 *.safetensors
 
 # API keys - never commit
 secrets.properties
+local.properties
+
+# IDE
+.idea/
+.DS_Store
+*.class
